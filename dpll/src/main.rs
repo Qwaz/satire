@@ -1,6 +1,6 @@
-use satire_dpll::parser::parse_file;
+use satire_dpll::{parser::parse_file, report::Report};
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), Report> {
     let cnf1 = parse_file("testcases/satch-cnfs/ph2.cnf")?;
     println!("{}", cnf1);
 

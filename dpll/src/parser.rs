@@ -4,30 +4,56 @@ use std::{
     path::Path,
 };
 
-use anyhow::Result;
+use crate::cnf::{Clause, Cnf, Variable, VariableParseError};
+use crate::prelude::*;
 
-use crate::cnf::{Clause, Cnf};
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("I/O error occurred"))]
+    IoError { source: std::io::Error },
+    #[snafu(display("Failed to parse clause line '{}'", clause))]
+    MalformedClause { clause: String },
+    #[snafu(display("Invalid variable found in clause '{}'", clause))]
+    MalformedVariable {
+        clause: String,
+        source: VariableParseError,
+    },
+    #[snafu(display("Problem line 'p cnf <num_variables> <num_clauses>' is not found"))]
+    MalformedProblemDefinition,
+    #[snafu(display(
+        "The number of clauses ({}) does not match the clauses number in the problem line ({})",
+        found,
+        expected,
+    ))]
+    ClauseCountMismatch { expected: usize, found: usize },
+}
 
 /// Parse a line to a clause
-fn parse_line(line: &str) -> Result<Clause> {
+fn parse_line(line: &str) -> Result<Clause, Error> {
     let mut variables = Vec::new();
 
     let splitted = line.split(" ").collect::<Vec<_>>();
-    if splitted.is_empty() || splitted[splitted.len() - 1] != "0" {
-        return Err(anyhow!("Malformed clause line '{}'", line));
-    }
+
+    ensure!(
+        !splitted.is_empty() && splitted[splitted.len() - 1] == "0",
+        MalformedClause {
+            clause: line.to_owned(),
+        }
+    );
 
     for s in &splitted[..splitted.len() - 1] {
-        variables.push(s.parse()?);
+        variables.push(s.parse::<Variable>().with_context(|| MalformedVariable {
+            clause: line.to_owned(),
+        })?);
     }
 
     Ok(Clause::new(variables))
 }
 
 /// Parses CNF formula from a file
-pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf> {
+pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf, Error> {
     let path = path.as_ref();
-    let file = BufReader::new(File::open(path)?);
+    let file = BufReader::new(File::open(path).context(IoError)?);
 
     // skip until we find the problem definition
     let mut lines = file
@@ -37,23 +63,20 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf> {
 
     let prob_line = lines
         .next()
-        .ok_or_else(|| anyhow!("Problem definition not found in '{}'", path.display()))?;
+        .ok_or_else(|| MalformedProblemDefinition.build())?;
 
     let splitted = prob_line.trim().split(" ").collect::<Vec<_>>();
 
-    let malformed_definition = Err(anyhow!(
-        "Problem definition malformed - expected 'p cnf <num_variables> <num_clauses>'"
-    ));
-
     // We only support CNF DIMACS format
-    if splitted.len() != 4 || splitted[0] != "p" || splitted[1] != "cnf" {
-        return malformed_definition;
-    }
+    ensure!(
+        splitted.len() == 4 || splitted[0] == "p" || splitted[1] == "cnf",
+        MalformedProblemDefinition
+    );
 
     let (num_variables, num_clauses) =
         match (splitted[2].parse::<usize>(), splitted[3].parse::<usize>()) {
             (Ok(num_variables), Ok(num_clauses)) => (num_variables, num_clauses),
-            _ => return malformed_definition,
+            _ => return MalformedProblemDefinition.fail(),
         };
 
     let mut cnf = Cnf::new(num_variables);
@@ -67,9 +90,13 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf> {
         cnf.add_clause(parse_line(&trimmed)?);
     }
 
-    if cnf.clauses().len() != num_clauses {
-        return Err(anyhow!("The number of actual clauses ({}) does not match the clauses number in the problem line ({})", cnf.clauses().len(), num_clauses));
-    }
+    ensure!(
+        cnf.clauses().len() == num_clauses,
+        ClauseCountMismatch {
+            found: cnf.clauses().len(),
+            expected: num_clauses,
+        }
+    );
 
     Ok(cnf)
 }

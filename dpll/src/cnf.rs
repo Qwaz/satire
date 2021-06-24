@@ -4,6 +4,14 @@ A module to represent conjunctive normal form formula
 
 use std::{fmt::Display, str::FromStr};
 
+use crate::prelude::*;
+
+#[derive(Debug, Snafu)]
+#[snafu(display("Failed to parse Variable ID"))]
+pub struct VariableParseError {
+    source: std::num::ParseIntError,
+}
+
 /// Newtype wrapper for variable ID
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VariableId(u32);
@@ -13,11 +21,13 @@ impl VariableId {
 }
 
 impl FromStr for VariableId {
-    type Err = std::num::ParseIntError;
+    type Err = VariableParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let inner = s.parse::<u32>()?;
-        Ok(VariableId(inner))
+        match s.parse() {
+            Ok(num) => Ok(VariableId(num)),
+            Err(e) => Err(VariableParseError { source: e }),
+        }
     }
 }
 
@@ -40,7 +50,7 @@ pub struct Variable {
 }
 
 impl FromStr for Variable {
-    type Err = std::num::ParseIntError;
+    type Err = VariableParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (negated, id) = if s.starts_with('-') {
