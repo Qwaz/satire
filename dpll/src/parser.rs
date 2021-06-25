@@ -4,24 +4,24 @@ use std::{
     path::Path,
 };
 
-use crate::cnf::{Clause, Cnf, Variable, VariableParseError};
+use crate::formula::{Clause, Cnf, Variable, VariableError};
 use crate::prelude::*;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("I/O error occurred"))]
+    #[snafu(display("I/O error occurred while parsing CNF"))]
     IoError { source: std::io::Error },
-    #[snafu(display("Failed to parse clause line '{}'", clause))]
+    #[snafu(display("Failed to parse line '{}' as clause", clause))]
     MalformedClause { clause: String },
     #[snafu(display("Invalid variable found in clause '{}'", clause))]
     MalformedVariable {
         clause: String,
-        source: VariableParseError,
+        source: VariableError,
     },
     #[snafu(display("Problem line 'p cnf <num_variables> <num_clauses>' is not found"))]
     MalformedProblemDefinition,
     #[snafu(display(
-        "The number of clauses ({}) does not match the clauses number in the problem line ({})",
+        "The number of clauses ({}) does not match the clauses number in the problem definition ({})",
         found,
         expected,
     ))]

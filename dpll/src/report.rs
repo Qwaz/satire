@@ -8,10 +8,10 @@ pub struct Report(Box<dyn StdError>);
 
 impl std::fmt::Debug for Report {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.0)?;
+        write!(f, "{}", self.0)?;
 
         if let Some(source) = self.0.source() {
-            writeln!(f, "\nCaused by:")?;
+            writeln!(f, "\n\nCaused by:")?;
             for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
                 writeln!(f, "  {}: {}", i, e)?;
             }

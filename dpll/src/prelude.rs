@@ -1,1 +1,1 @@
-pub use snafu::{ensure, ResultExt, Snafu};
+pub use snafu::{ensure, OptionExt, ResultExt, Snafu};

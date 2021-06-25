@@ -1,11 +1,14 @@
-use satire_dpll::{parser::parse_file, report::Report};
+use satire_dpll::{parser::parse_file, report::Report, solver::solve};
 
 fn main() -> Result<(), Report> {
-    let cnf1 = parse_file("testcases/satch-cnfs/ph2.cnf")?;
-    println!("{}", cnf1);
+    let formula = parse_file("testcases/satch-cnfs/ph6.cnf")?;
+    println!("{}", formula);
 
-    let cnf2 = parse_file("dpll/src/main.rs")?;
-    println!("{}", cnf2);
+    if let Some(model) = solve(formula) {
+        println!("SAT {}", model);
+    } else {
+        println!("UNSAT");
+    }
 
     Ok(())
 }
