@@ -1,5 +1,10 @@
-[workspace]
+[package]
+name = "satire"
+version = "0.1.0"
+authors = ["Yechan Bae <yechan@gatech.edu>"]
+edition = "2018"
 
-members = [
-    "dpll",
-]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snafu = "0.6.10"

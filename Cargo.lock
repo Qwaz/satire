@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "satire-dpll"
+name = "satire"
 version = "0.1.0"
 dependencies = [
  "snafu",

@@ -2,66 +2,74 @@
 A module to represent conjunctive normal form formula.
 */
 
-use std::{fmt::Display, num::NonZeroU32, str::FromStr};
+use std::{convert::TryInto, fmt::Display, num::NonZeroU32, str::FromStr};
 
 use crate::prelude::*;
 
 #[derive(Debug, Snafu)]
-pub enum VariableError {
+pub enum VariableParseError {
     #[snafu(display("Failed to parse Variable ID"))]
-    ParseError { source: std::num::ParseIntError },
-    #[snafu(display("Variable ID must be non-zero"))]
-    ZeroError,
+    ParseIntError { source: std::num::ParseIntError },
+    #[snafu(display(
+        "Variable ID {} is out of range (must be within 1 to {})",
+        num,
+        Variable::MAX_VARIABLE_ID
+    ))]
+    RangeError { num: usize },
 }
 
 /// Newtype wrapper for variable ID.
 /// Invariant: 0 < ID <= MAX_VARIABLE_ID
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VariableId(NonZeroU32);
+pub struct Variable(NonZeroU32);
 
-impl VariableId {
+impl Variable {
     pub const MAX_VARIABLE_ID: usize = std::u32::MAX as usize;
 }
 
-impl VariableId {
+impl Variable {
     pub fn as_index(&self) -> usize {
         (self.0.get() - 1) as usize
     }
 
-    pub fn from_index(index: usize) -> Self {
-        let id = index.checked_add(1).unwrap();
-        assert!(id <= VariableId::MAX_VARIABLE_ID);
-        VariableId(NonZeroU32::new(id as u32).unwrap())
+    /// Creates a variable from a raw index.
+    /// Returns `None` if the index is invalid.
+    pub fn from_index(index: usize) -> Option<Self> {
+        let id = index.checked_add(1)?;
+        if id > Variable::MAX_VARIABLE_ID {
+            return None;
+        }
+        Some(Variable(NonZeroU32::new(id.try_into().ok()?)?))
     }
 }
 
-impl FromStr for VariableId {
-    type Err = VariableError;
+impl FromStr for Variable {
+    type Err = VariableParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let num = s.parse::<u32>().context(ParseError)?;
-        Ok(VariableId(NonZeroU32::new(num).context(ZeroError)?))
+        let num = s.parse::<usize>().context(ParseIntError)?;
+        Variable::from_index(num).context(RangeError { num })
     }
 }
 
-impl Display for VariableId {
+impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "x{}", self.0)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Variable {
-    id: VariableId,
+pub struct Literal {
+    id: Variable,
     positive: bool,
 }
 
-impl Variable {
-    pub fn new(id: VariableId, positive: bool) -> Self {
-        Variable { id, positive }
+impl Literal {
+    pub fn new(id: Variable, positive: bool) -> Self {
+        Literal { id, positive }
     }
 
-    pub fn id(&self) -> VariableId {
+    pub fn variable(&self) -> Variable {
         self.id
     }
 
@@ -70,8 +78,8 @@ impl Variable {
     }
 }
 
-impl FromStr for Variable {
-    type Err = VariableError;
+impl FromStr for Literal {
+    type Err = VariableParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (negated, id) = if s.starts_with('-') {
@@ -80,24 +88,24 @@ impl FromStr for Variable {
             (true, s.parse()?)
         };
 
-        Ok(Variable {
+        Ok(Literal {
             id,
             positive: negated,
         })
     }
 }
 
-impl Display for Variable {
+impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", if self.positive { "" } else { "¬" }, self.id)
     }
 }
 
-impl std::ops::Not for Variable {
-    type Output = Variable;
+impl std::ops::Not for Literal {
+    type Output = Literal;
 
     fn not(self) -> Self::Output {
-        Variable {
+        Literal {
             id: self.id,
             positive: !self.positive,
         }
@@ -107,20 +115,20 @@ impl std::ops::Not for Variable {
 /// Disjunction variables
 #[derive(Debug, Clone)]
 pub struct Clause {
-    variables: Vec<Variable>,
+    literals: Vec<Literal>,
 }
 
 impl Clause {
-    pub fn new(variables: Vec<Variable>) -> Self {
-        Self { variables }
+    pub fn new(literals: Vec<Literal>) -> Self {
+        Self { literals }
     }
 
-    pub fn num_variables(&self) -> usize {
-        self.variables.len()
+    pub fn num_literals(&self) -> usize {
+        self.literals.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Variable> + '_ {
-        self.variables.iter().copied()
+    pub fn iter(&self) -> impl Iterator<Item = Literal> + '_ {
+        self.literals.iter().copied()
     }
 }
 
@@ -128,7 +136,7 @@ impl Display for Clause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "(")?;
 
-        let mut iter = self.variables.iter();
+        let mut iter = self.literals.iter();
         if let Some(first) = iter.next() {
             write!(f, "{}", first)?;
         }
@@ -151,7 +159,7 @@ pub struct Cnf {
 
 impl Cnf {
     pub fn new(num_variables: usize) -> Self {
-        assert!(num_variables <= VariableId::MAX_VARIABLE_ID);
+        assert!(num_variables <= Variable::MAX_VARIABLE_ID);
 
         Cnf {
             num_variables,
@@ -228,7 +236,7 @@ impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Model for {}\nAssignment:", self.formula)?;
         for (idx, &val) in self.assignment.iter().enumerate() {
-            write!(f, "\n  {}: {}", VariableId::from_index(idx), val)?;
+            write!(f, "\n  {}: {}", Variable::from_index(idx).unwrap(), val)?;
         }
 
         Ok(())

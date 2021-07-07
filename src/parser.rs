@@ -1,22 +1,25 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
-use crate::formula::{Clause, Cnf, Variable, VariableError};
+use crate::formula::{Clause, Cnf, Literal, VariableParseError};
 use crate::prelude::*;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("I/O error occurred while parsing CNF"))]
-    IoError { source: std::io::Error },
+    #[snafu(display("I/O error occurred while parsing CNF file '{}'", path.display()))]
+    IoError {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[snafu(display("Failed to parse line '{}' as clause", clause))]
     MalformedClause { clause: String },
     #[snafu(display("Invalid variable found in clause '{}'", clause))]
     MalformedVariable {
         clause: String,
-        source: VariableError,
+        source: VariableParseError,
     },
     #[snafu(display("Problem line 'p cnf <num_variables> <num_clauses>' is not found"))]
     MalformedProblemDefinition,
@@ -42,7 +45,7 @@ fn parse_line(line: &str) -> Result<Clause, Error> {
     );
 
     for s in &splitted[..splitted.len() - 1] {
-        variables.push(s.parse::<Variable>().with_context(|| MalformedVariable {
+        variables.push(s.parse::<Literal>().with_context(|| MalformedVariable {
             clause: line.to_owned(),
         })?);
     }
@@ -53,7 +56,9 @@ fn parse_line(line: &str) -> Result<Clause, Error> {
 /// Parses CNF formula from a file
 pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf, Error> {
     let path = path.as_ref();
-    let file = BufReader::new(File::open(path).context(IoError)?);
+    let file = BufReader::new(File::open(path).context(IoError {
+        path: path.to_owned(),
+    })?);
 
     // skip until we find the problem definition
     let mut lines = file
