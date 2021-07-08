@@ -38,9 +38,9 @@ mod inner {
 
         fn index(&self, literal: Literal) -> &Self::Output {
             if literal.positive() {
-                &self.positive[literal.variable().as_index()]
+                &self.positive[literal.index()]
             } else {
-                &self.negative[literal.variable().as_index()]
+                &self.negative[literal.index()]
             }
         }
     }
@@ -48,9 +48,9 @@ mod inner {
     impl IndexMut<Literal> for Watch {
         fn index_mut(&mut self, literal: Literal) -> &mut Self::Output {
             if literal.positive() {
-                &mut self.positive[literal.variable().as_index()]
+                &mut self.positive[literal.index()]
             } else {
-                &mut self.negative[literal.variable().as_index()]
+                &mut self.negative[literal.index()]
             }
         }
     }
@@ -80,18 +80,13 @@ pub struct DpllSolver {
 }
 
 impl DpllSolver {
-    fn assigned_value(&self, literal: Literal) -> Option<bool> {
-        let raw_assignment = self.assignment[literal.variable().as_index()];
-        raw_assignment.map(|val| val ^ !literal.positive())
-    }
-
     /// Returns a forced literal in a unit clause.
     fn forced_assignment(&self, clause_index: usize) -> Option<Literal> {
         let clause = &self.formula.clauses()[clause_index];
         let stat = &self.clause_stats[clause_index];
         if stat.satisfied == 0 && stat.unsatisfied == clause.num_literals() - 1 {
             for literal in clause.iter() {
-                if self.assigned_value(literal).is_none() {
+                if literal.partial_value(&self.assignment).is_none() {
                     return Some(literal);
                 }
             }
@@ -124,7 +119,7 @@ impl DpllSolver {
 
     fn assign_literal(&mut self, literal: Literal) {
         self.assigned_stack.push(literal);
-        self.assignment[literal.variable().as_index()] = Some(literal.positive());
+        self.assignment[literal.index()] = Some(literal.positive());
 
         for &clause_index in &self.watch[literal] {
             let mut stat = &mut self.clause_stats[clause_index];
@@ -148,7 +143,7 @@ impl DpllSolver {
 
     fn pop_assignment(&mut self) {
         let literal = self.assigned_stack.pop().unwrap();
-        self.assignment[literal.variable().as_index()] = None;
+        self.assignment[literal.index()] = None;
 
         for &clause_index in &self.watch[literal] {
             let mut stat = &mut self.clause_stats[clause_index];

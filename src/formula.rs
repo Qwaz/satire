@@ -28,7 +28,7 @@ impl Variable {
 }
 
 impl Variable {
-    pub fn as_index(&self) -> usize {
+    pub fn index(self) -> usize {
         (self.0.get() - 1) as usize
     }
 
@@ -60,21 +60,40 @@ impl Display for Variable {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Literal {
-    id: Variable,
+    variable: Variable,
     positive: bool,
 }
 
 impl Literal {
-    pub fn new(id: Variable, positive: bool) -> Self {
-        Literal { id, positive }
+    pub fn new(variable: Variable, positive: bool) -> Self {
+        Literal { variable, positive }
     }
 
-    pub fn variable(&self) -> Variable {
-        self.id
+    pub fn variable(self) -> Variable {
+        self.variable
     }
 
-    pub fn positive(&self) -> bool {
+    pub fn index(self) -> usize {
+        self.variable.index()
+    }
+
+    pub fn positive(self) -> bool {
         self.positive
+    }
+
+    pub fn value(self, assignments: &[bool]) -> bool {
+        if self.positive {
+            assignments[self.index()]
+        } else {
+            !assignments[self.index()]
+        }
+    }
+
+    pub fn partial_value(self, assignments: &[Option<bool>]) -> Option<bool> {
+        match assignments[self.index()] {
+            Some(val) => Some(if self.positive { val } else { !val }),
+            None => None,
+        }
     }
 }
 
@@ -82,22 +101,24 @@ impl FromStr for Literal {
     type Err = VariableParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (negated, id) = if s.starts_with('-') {
+        let (positive, variable) = if s.starts_with('-') {
             (false, s[1..].parse()?)
         } else {
             (true, s.parse()?)
         };
 
-        Ok(Literal {
-            id,
-            positive: negated,
-        })
+        Ok(Literal { variable, positive })
     }
 }
 
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", if self.positive { "" } else { "¬" }, self.id)
+        write!(
+            f,
+            "{}{}",
+            if self.positive { "" } else { "¬" },
+            self.variable
+        )
     }
 }
 
@@ -106,7 +127,7 @@ impl std::ops::Not for Literal {
 
     fn not(self) -> Self::Output {
         Literal {
-            id: self.id,
+            variable: self.variable,
             positive: !self.positive,
         }
     }
@@ -175,8 +196,17 @@ impl Cnf {
         &self.clauses
     }
 
+    /// Adds a clause to the current formula.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `clause` contains invalid literals.
     pub fn add_clause(&mut self, clause: Clause) {
-        // TODO: sanity check - variables are in-range
+        // sanity check - variables are in-range
+        assert!(clause
+            .iter()
+            .all(|literal| literal.index() < self.num_variables));
+
         self.clauses.push(clause);
     }
 }
@@ -215,7 +245,10 @@ impl Model {
     pub fn new(formula: Cnf, assignment: Vec<bool>) -> Self {
         assert!(assignment.len() == formula.num_variables());
 
-        // TODO: verify model validity
+        // verify model validity
+        for clause in &formula.clauses {
+            assert!(clause.iter().any(|literal| literal.value(&assignment)));
+        }
 
         Model {
             formula,

@@ -23,14 +23,14 @@ command:
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Unknown solver '{}'", name))]
+    #[snafu(display("Unknown solver '{}'\n\n{}", name, usage_string()))]
     UnknownSolver { name: String },
-    #[snafu(display("Unknown command '{}'", name))]
+    #[snafu(display("Unknown command '{}'\n\n{}", name, usage_string()))]
     UnknownCommand { name: String },
     #[snafu(display("Failed to parse CNF"))]
     ParserError { source: parser::Error },
-    #[snafu(display("Incorrect usage\n\n{}", usage_string()))]
-    UsageError,
+    #[snafu(display("Required argument does not exist\n\n{}", usage_string()))]
+    MissingArgument,
 }
 
 fn solve_path<T: Solver>(path: &Path) -> Result<Option<Model>, Error> {
@@ -42,7 +42,7 @@ fn solve_path<T: Solver>(path: &Path) -> Result<Option<Model>, Error> {
 fn dispatch_command<T: Solver>(args: Vec<String>) -> Result<(), Error> {
     match args.get(0).map(|s| s.as_str()) {
         Some("check") => {
-            let path = args.get(1).context(UsageError)?;
+            let path = args.get(1).context(MissingArgument)?;
             let result = solve_path::<T>(path.as_ref())?;
             if let Some(model) = result {
                 println!("SAT {}", model);
@@ -55,7 +55,7 @@ fn dispatch_command<T: Solver>(args: Vec<String>) -> Result<(), Error> {
             name: name.to_owned(),
         }
         .fail()?,
-        None => UsageError.fail()?,
+        None => MissingArgument.fail()?,
     }
 
     Ok(())
