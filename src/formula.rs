@@ -48,7 +48,7 @@ impl FromStr for Variable {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let num = s.parse::<usize>().context(ParseIntError)?;
         let index = num.checked_sub(1).context(RangeError { num })?;
-        Variable::from_index(index).context(RangeError { num: index })
+        Variable::from_index(index).context(RangeError { num })
     }
 }
 
@@ -144,7 +144,7 @@ impl Clause {
         Self { literals }
     }
 
-    pub fn num_literals(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.literals.len()
     }
 
@@ -176,6 +176,7 @@ impl Display for Clause {
 pub struct Cnf {
     num_variables: usize,
     clauses: Vec<Clause>,
+    empty_clause_count: usize,
 }
 
 impl Cnf {
@@ -185,6 +186,7 @@ impl Cnf {
         Cnf {
             num_variables,
             clauses: Vec::new(),
+            empty_clause_count: 0,
         }
     }
 
@@ -192,8 +194,12 @@ impl Cnf {
         self.num_variables
     }
 
-    pub fn clauses(&self) -> &Vec<Clause> {
+    pub fn clauses(&self) -> &[Clause] {
         &self.clauses
+    }
+
+    pub fn empty_clause_count(&self) -> usize {
+        self.empty_clause_count
     }
 
     /// Adds a clause to the current formula.
@@ -202,6 +208,11 @@ impl Cnf {
     ///
     /// Panics when `clause` contains invalid literals.
     pub fn add_clause(&mut self, clause: Clause) {
+        if clause.len() == 0 {
+            self.empty_clause_count += 1;
+            return;
+        }
+
         // sanity check - variables are in-range
         assert!(clause
             .iter()

@@ -84,7 +84,7 @@ impl DpllSolver {
     fn forced_assignment(&self, clause_index: usize) -> Option<Literal> {
         let clause = &self.formula.clauses()[clause_index];
         let stat = &self.clause_stats[clause_index];
-        if stat.satisfied == 0 && stat.unsatisfied == clause.num_literals() - 1 {
+        if stat.satisfied == 0 && stat.unsatisfied == clause.len() - 1 {
             for literal in clause.iter() {
                 if literal.partial_value(&self.assignment).is_none() {
                     return Some(literal);
@@ -135,7 +135,7 @@ impl DpllSolver {
             let mut stat = &mut self.clause_stats[clause_index];
 
             stat.unsatisfied += 1;
-            if stat.unsatisfied == clause.num_literals() {
+            if stat.unsatisfied == clause.len() {
                 self.unsatisfied_clauses += 1;
             }
         }
@@ -158,7 +158,7 @@ impl DpllSolver {
             let clause = &self.formula.clauses()[clause_index];
             let mut stat = &mut self.clause_stats[clause_index];
 
-            if stat.unsatisfied == clause.num_literals() {
+            if stat.unsatisfied == clause.len() {
                 self.unsatisfied_clauses -= 1;
             }
             stat.unsatisfied -= 1;

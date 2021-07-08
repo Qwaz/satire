@@ -96,7 +96,7 @@ pub fn parse_file(path: impl AsRef<Path>) -> Result<Cnf, Error> {
     }
 
     ensure!(
-        cnf.clauses().len() == num_clauses,
+        cnf.clauses().len() + cnf.empty_clause_count() == num_clauses,
         ClauseCountMismatch {
             found: cnf.clauses().len(),
             expected: num_clauses,
