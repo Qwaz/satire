@@ -2,7 +2,7 @@
 A module to represent conjunctive normal form formula.
 */
 
-use std::{convert::TryInto, fmt::Display, num::NonZeroU32, str::FromStr};
+use std::{convert::TryInto, fmt::Display, str::FromStr};
 
 use crate::prelude::*;
 
@@ -13,33 +13,32 @@ pub enum VariableParseError {
     #[snafu(display(
         "Variable ID {} is out of range (must be within 1 to {})",
         num,
-        Variable::MAX_VARIABLE_ID
+        Variable::MAX_VARIABLE_INDEX + 1
     ))]
     RangeError { num: usize },
 }
 
 /// Newtype wrapper for variable ID.
-/// Invariant: 0 < ID <= MAX_VARIABLE_ID
+/// Internally uses 0-based index, but uses 1-based index for printing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Variable(NonZeroU32);
+pub struct Variable(u32);
 
 impl Variable {
-    pub const MAX_VARIABLE_ID: usize = std::u32::MAX as usize;
+    pub const MAX_VARIABLE_INDEX: usize = std::u32::MAX as usize;
 }
 
 impl Variable {
     pub fn index(self) -> usize {
-        (self.0.get() - 1) as usize
+        self.0 as usize
     }
 
-    /// Creates a variable from a raw index.
+    /// Creates a variable from an index.
     /// Returns `None` if the index is invalid.
     pub fn from_index(index: usize) -> Option<Self> {
-        let id = index.checked_add(1)?;
-        if id > Variable::MAX_VARIABLE_ID {
+        if index > Variable::MAX_VARIABLE_INDEX {
             return None;
         }
-        Some(Variable(NonZeroU32::new(id.try_into().ok()?)?))
+        Some(Variable(index.try_into().unwrap()))
     }
 }
 
@@ -48,13 +47,14 @@ impl FromStr for Variable {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let num = s.parse::<usize>().context(ParseIntError)?;
-        Variable::from_index(num).context(RangeError { num })
+        let index = num.checked_sub(1).context(RangeError { num })?;
+        Variable::from_index(index).context(RangeError { num: index })
     }
 }
 
 impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "x{}", self.0)
+        write!(f, "x{}", self.0 as usize + 1)
     }
 }
 
@@ -180,7 +180,7 @@ pub struct Cnf {
 
 impl Cnf {
     pub fn new(num_variables: usize) -> Self {
-        assert!(num_variables <= Variable::MAX_VARIABLE_ID);
+        assert!(num_variables <= Variable::MAX_VARIABLE_INDEX + 1);
 
         Cnf {
             num_variables,

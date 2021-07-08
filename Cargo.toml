@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 snafu = "0.6.10"
+
+[dev-dependencies]
+paste = "1.0.5"

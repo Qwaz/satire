@@ -12,10 +12,9 @@ fn usage_string() -> String {
     format!(
         "Usage: {} <solver_name> <command>
 
-solver_name: dpll, cdcl
+solver_name: dpll
 
 command:
-    test - test the solver on testcases
     check <file_name> - test the solver with given file",
         args().next().unwrap()
     )
@@ -50,7 +49,6 @@ fn dispatch_command<T: Solver>(args: Vec<String>) -> Result<(), Error> {
                 println!("UNSAT");
             }
         }
-        Some("test") => todo!(),
         Some(name) => UnknownCommand {
             name: name.to_owned(),
         }
