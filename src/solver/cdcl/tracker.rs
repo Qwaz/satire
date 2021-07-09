@@ -277,6 +277,8 @@ pub struct Tracker {
     num_variables: usize,
     /// The current assignments to variables.
     assignments: Vec<Option<bool>>,
+    /// The number of assigned variables.
+    assigned_count: usize,
     /// Variable watches.
     watch: Watch,
     /// Inverse-map of watches.
@@ -290,6 +292,7 @@ impl Tracker {
         Tracker {
             num_variables,
             assignments: vec![None; num_variables],
+            assigned_count: 0,
             watch: Watch::new(num_variables),
             clauses: TiVec::new(),
             clause_cache: ClauseStateCache::new(),
@@ -376,6 +379,7 @@ impl Tracker {
     pub fn set_literal(&mut self, literal: Literal) {
         let old_value = self.assignments[literal.index()].replace(literal.positive());
         assert!(old_value.is_none());
+        self.assigned_count += 1;
 
         for watch in self.watch[literal].iter() {
             // Sets the literal to true
@@ -409,6 +413,7 @@ impl Tracker {
     pub fn unset(&mut self, variable: Variable) {
         let old_value = self.assignments[variable.index()].take().unwrap();
         let literal = Literal::new(variable, old_value);
+        self.assigned_count -= 1;
 
         for (variable_col, watch) in self.watch[literal].iter().enumerate() {
             // Undo literal removal
@@ -452,5 +457,13 @@ impl Tracker {
             .literals
             .iter()
             .map(|watched_literal| watched_literal.literal)
+    }
+
+    /// Return the remaining literal in the unit clause.
+    /// Panics if the given clause is not a unit clause.
+    pub fn unit_clause_literal(&self, index: ClauseIdx) -> Literal {
+        let tracked_clause = &self.clauses[index];
+        assert!(tracked_clause.literals.len() == 1);
+        tracked_clause.literals.first().unwrap().literal
     }
 }

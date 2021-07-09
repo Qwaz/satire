@@ -1,100 +1,144 @@
 use crate::formula::{Cnf, Literal, Model, Variable};
 
-use self::tracker::Tracker;
+use self::tracker::{ClauseIdx, Tracker};
 
 use super::Solver;
 
 mod tracker;
 
+#[derive(Clone, Copy)]
+enum DecisionReason {
+    FirstDecision,
+    ToggledDecision,
+    UnitPropagation(ClauseIdx),
+}
+
+#[derive(Clone)]
 pub struct Decision {
-    level: usize,
+    decision_level: usize,
+    reason: DecisionReason,
 }
 
 pub struct CdclSolver {
     formula: Cnf,
-    decision_stack: Vec<Decision>,
+    decisions: Vec<Option<Decision>>,
+    decision_stack: Vec<Literal>,
     tracker: Tracker,
+}
+
+impl CdclSolver {
+    fn push_decision(&mut self, literal: Literal, decision: Decision) {
+        self.tracker.set_literal(literal);
+        self.decision_stack.push(literal);
+        self.decisions[literal.index()] = Some(decision);
+    }
+
+    fn pop_decision(&mut self) -> Option<(Literal, Decision)> {
+        self.decision_stack.pop().map(|literal| {
+            self.tracker.unset(literal.variable());
+            let decision = self.decisions[literal.index()].take().unwrap();
+            (literal, decision)
+        })
+    }
 }
 
 impl Solver for CdclSolver {
     fn new(formula: Cnf) -> Self {
         let tracker = Tracker::from_cnf(&formula);
+        let num_variables = formula.num_variables();
 
         CdclSolver {
             formula,
+            decisions: vec![None; num_variables],
             decision_stack: Vec::new(),
             tracker,
         }
     }
 
-    fn solve(mut self) -> Option<crate::formula::Model> {
+    fn solve(mut self) -> Option<Model> {
         // TODO: This is not CDCL yet
         // but DPLL-like algorithm to test the correctness of Tracker implementation
 
-        fn solve_inner(solver: &mut CdclSolver) -> Option<Vec<bool>> {
-            if solver.tracker.satisfied_clauses().len() == solver.tracker.num_clauses() {
-                // All clauses are satisfied, fill remaining variables and return.
-                let assignment = solver
-                    .tracker
-                    .assignments()
-                    .iter()
-                    .map(|assign| assign.unwrap_or(true))
-                    .collect::<Vec<_>>();
+        let mut current_level = 0;
+        while self.tracker.satisfied_clauses().len() != self.tracker.num_clauses() {
+            // Perform unit propagation
+            let unit = self.tracker.unit_clauses();
+            if let Some(clause_idx) = unit.iter().next().copied() {
+                let decision = Decision {
+                    decision_level: current_level,
+                    reason: DecisionReason::UnitPropagation(clause_idx),
+                };
+                let literal = self.tracker.unit_clause_literal(clause_idx);
+                self.push_decision(literal, decision);
 
-                return Some(assignment);
-            } else if solver.tracker.falsified_clauses().len() > 0 {
-                // There is a clause that can be never satisfied.
-                return None;
+                continue;
             }
 
-            // We need to explor emore.
+            // Backtrack if we are stuck
+            if self.tracker.falsified_clauses().len() > 0 {
+                // TODO: clause learning and non-chronological backtracking
 
-            // See if there is a unit assignment.
-            let unit = solver.tracker.unit_clauses();
-            match unit.iter().next().copied() {
-                Some(clause_idx) => {
-                    let next_literal = solver.tracker.literals(clause_idx).next().unwrap();
-
-                    solver.tracker.set_literal(next_literal);
-                    if let Some(assignment) = solve_inner(solver) {
-                        return Some(assignment);
+                while let Some((literal, decision)) = self.pop_decision() {
+                    match decision.reason {
+                        DecisionReason::FirstDecision => {
+                            // Flip the decision and retry
+                            current_level = decision.decision_level;
+                            self.push_decision(
+                                !literal,
+                                Decision {
+                                    decision_level: current_level,
+                                    reason: DecisionReason::ToggledDecision,
+                                },
+                            );
+                            break;
+                        }
+                        _ => {
+                            // We already popped the decision, so we are done.
+                            // Continue until we find the next untoggled decision.
+                        }
                     }
-                    solver.tracker.unset(next_literal.variable());
-
-                    None
                 }
-                None => {
-                    // Try the first unassigned variable.
-                    // Note: This is an inefficient heuristics, replace with VSIDS.
-                    let (index, _) = solver
-                        .tracker
-                        .assignments()
-                        .iter()
-                        .enumerate()
-                        .find(|(_index, value)| value.is_none())
-                        .unwrap();
 
-                    let variable = Variable::from_index(index).unwrap();
-                    let literal = Literal::new(variable, true);
-
-                    solver.tracker.set_literal(literal);
-                    if let Some(assignment) = solve_inner(solver) {
-                        return Some(assignment);
-                    }
-                    solver.tracker.unset(variable);
-
-                    solver.tracker.set_literal(!literal);
-                    if let Some(assignment) = solve_inner(solver) {
-                        return Some(assignment);
-                    }
-                    solver.tracker.unset(variable);
-
-                    None
+                if self.decision_stack.is_empty() {
+                    // We tried all possibilities and failed.
+                    return None;
                 }
+
+                // We flipped the last untoggled decision.
+                continue;
             }
+
+            // Make a new decision; try the first unassigned variable.
+            // TODO: implement VSIDS
+            let (index, _) = self
+                .tracker
+                .assignments()
+                .iter()
+                .enumerate()
+                .find(|(_index, value)| value.is_none())
+                .unwrap();
+
+            current_level += 1;
+
+            let variable = Variable::from_index(index).unwrap();
+            let literal = Literal::new(variable, true);
+            self.push_decision(
+                literal,
+                Decision {
+                    decision_level: current_level,
+                    reason: DecisionReason::FirstDecision,
+                },
+            );
         }
 
-        let assignment = solve_inner(&mut self);
-        assignment.map(|assignment| Model::new(self.formula, assignment))
+        // All clauses are satisfied, fill remaining variables and return.
+        let assignment = self
+            .tracker
+            .assignments()
+            .iter()
+            .map(|assign| assign.unwrap_or(true))
+            .collect::<Vec<_>>();
+
+        return Some(Model::new(self.formula, assignment));
     }
 }
