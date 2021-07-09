@@ -5,14 +5,14 @@ use satire::{
     parser::{self, parse_file},
     prelude::*,
     report::Report,
-    solver::{DpllSolver, Solver},
+    solver::{CdclSolver, DpllSolver, Solver},
 };
 
 fn usage_string() -> String {
     format!(
         "Usage: {} <solver_name> <command>
 
-solver_name: dpll
+solver_name: dpll, cdcl
 
 command:
     check <file_name> - test the solver with given file",
@@ -71,6 +71,7 @@ fn main() -> Result<(), Report> {
 
     match solver_name.as_deref() {
         Some("dpll") => dispatch_command::<DpllSolver>(remaining)?,
+        Some("cdcl") => dispatch_command::<CdclSolver>(remaining)?,
         Some(name) => UnknownSolver {
             name: name.to_owned(),
         }

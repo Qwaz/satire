@@ -2,7 +2,7 @@ use paste::paste;
 
 use crate::{
     parser::parse_file,
-    solver::{DpllSolver, Solver},
+    solver::{CdclSolver, DpllSolver, Solver},
 };
 
 macro_rules! sat_testcase_with_solver {
@@ -38,12 +38,14 @@ macro_rules! unsat_testcase_with_solver {
 macro_rules! sat_testcase {
     ($dir:ident, $name:ident) => {
         sat_testcase_with_solver!(DpllSolver, $dir, $name);
+        sat_testcase_with_solver!(CdclSolver, $dir, $name);
     };
 }
 
 macro_rules! unsat_testcase {
     ($dir:ident, $name:ident) => {
         unsat_testcase_with_solver!(DpllSolver, $dir, $name);
+        unsat_testcase_with_solver!(CdclSolver, $dir, $name);
     };
 }
 

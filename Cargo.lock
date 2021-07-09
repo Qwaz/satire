@@ -36,6 +36,7 @@ version = "0.1.0"
 dependencies = [
  "paste",
  "snafu",
+ "typed-index-collections",
 ]
 
 [[package]]
@@ -69,6 +70,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "typed-index-collections"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2198514940bb6574216fde5d5c349c3f578fa719b225352f0eaaf45983c930"
 
 [[package]]
 name = "unicode-xid"

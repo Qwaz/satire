@@ -1,7 +1,9 @@
 use crate::formula::{Cnf, Model};
 
+mod cdcl;
 mod dpll;
 
+pub use cdcl::CdclSolver;
 pub use dpll::DpllSolver;
 
 pub trait Solver {
