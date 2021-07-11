@@ -40,6 +40,14 @@ impl Variable {
         }
         Some(Variable(index.try_into().unwrap()))
     }
+
+    pub fn value(self, assignments: &[bool]) -> bool {
+        assignments[self.index()]
+    }
+
+    pub fn partial_value(self, assignments: &[Option<bool>]) -> Option<bool> {
+        assignments[self.index()]
+    }
 }
 
 impl FromStr for Variable {
@@ -82,18 +90,13 @@ impl Literal {
     }
 
     pub fn value(self, assignments: &[bool]) -> bool {
-        if self.positive {
-            assignments[self.index()]
-        } else {
-            !assignments[self.index()]
-        }
+        self.variable.value(assignments) ^ !self.positive
     }
 
     pub fn partial_value(self, assignments: &[Option<bool>]) -> Option<bool> {
-        match assignments[self.index()] {
-            Some(val) => Some(if self.positive { val } else { !val }),
-            None => None,
-        }
+        self.variable
+            .partial_value(assignments)
+            .map(|val| val ^ !self.positive)
     }
 }
 
@@ -146,6 +149,10 @@ impl Clause {
 
     pub fn len(&self) -> usize {
         self.literals.len()
+    }
+
+    pub fn as_slice(&self) -> &[Literal] {
+        &self.literals
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Literal> + '_ {

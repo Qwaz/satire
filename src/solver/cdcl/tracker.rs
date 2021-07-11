@@ -264,6 +264,7 @@ impl IndexMut<Literal> for Watch {
 
 struct TrackedClause {
     stat: ClauseStat,
+    original: Clause,
     literals: TiVec<ClauseCol, WatchedLiteral>,
 }
 
@@ -274,7 +275,7 @@ struct WatchedLiteral {
 
 pub struct Tracker {
     /// Number of variables.
-    num_variables: usize,
+    _num_variables: usize,
     /// The current assignments to variables.
     assignments: Vec<Option<bool>>,
     /// The number of assigned variables.
@@ -290,7 +291,7 @@ pub struct Tracker {
 impl Tracker {
     pub fn new(num_variables: usize) -> Self {
         Tracker {
-            num_variables,
+            _num_variables: num_variables,
             assignments: vec![None; num_variables],
             assigned_count: 0,
             watch: Watch::new(num_variables),
@@ -302,12 +303,12 @@ impl Tracker {
     pub fn from_cnf(formula: &Cnf) -> Self {
         let mut tracker = Tracker::new(formula.num_variables());
         for clause in formula.clauses() {
-            tracker.add_clause(clause);
+            tracker.add_clause(clause.clone());
         }
         tracker
     }
 
-    pub fn add_clause(&mut self, clause: &Clause) {
+    pub fn add_clause(&mut self, clause: Clause) {
         let mut satisfied = 0;
         let mut unsatisfied = 0;
 
@@ -339,7 +340,11 @@ impl Tracker {
         let stat = ClauseStat::new(clause.len(), satisfied, unsatisfied);
         self.clause_cache[stat.status()].insert(clause_index);
 
-        self.clauses.push(TrackedClause { stat, literals });
+        self.clauses.push(TrackedClause {
+            stat,
+            original: clause,
+            literals,
+        });
     }
 
     /// Get a reference to the tracker's assignments.
@@ -446,22 +451,14 @@ impl Tracker {
         }
     }
 
-    /// Return the status of the specified clause.
-    pub fn clause_status(&self, index: ClauseIdx) -> ClauseStatus {
-        self.clauses[index].stat.status()
-    }
-
-    /// Return the unresolved literals inside the specified clause.
-    pub fn literals(&self, index: ClauseIdx) -> impl Iterator<Item = Literal> + '_ {
-        self.clauses[index]
-            .literals
-            .iter()
-            .map(|watched_literal| watched_literal.literal)
+    /// Get the original clause from the clause index.
+    pub fn original_clause(&self, index: ClauseIdx) -> &Clause {
+        &self.clauses[index].original
     }
 
     /// Return the remaining literal in the unit clause.
     /// Panics if the given clause is not a unit clause.
-    pub fn unit_clause_literal(&self, index: ClauseIdx) -> Literal {
+    pub fn get_unit_clause_literal(&self, index: ClauseIdx) -> Literal {
         let tracked_clause = &self.clauses[index];
         assert!(tracked_clause.literals.len() == 1);
         tracked_clause.literals.first().unwrap().literal
