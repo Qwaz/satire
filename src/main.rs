@@ -1,5 +1,6 @@
 use std::{env::args, path::Path};
 
+use pretty_env_logger::formatted_builder;
 use satire::{
     formula::Model,
     parser::{self, parse_file},
@@ -59,7 +60,25 @@ fn dispatch_command<T: Solver>(args: Vec<String>) -> Result<(), Error> {
     Ok(())
 }
 
+fn init_logger() {
+    let mut builder = formatted_builder();
+
+    if let Ok(s) = ::std::env::var("RUST_LOG") {
+        builder.parse_filters(&s);
+    } else {
+        if cfg!(debug_assertions) {
+            builder.parse_filters("satire=debug");
+        } else {
+            builder.parse_filters("satire=warn");
+        }
+    }
+
+    builder.try_init().expect("Failed to initialize the logger");
+}
+
 fn main() -> Result<(), Report> {
+    init_logger();
+
     let mut args = args();
 
     // drop arg[0]

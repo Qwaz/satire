@@ -79,7 +79,7 @@ impl CdclSolver {
     }
 
     fn push_decision(&mut self, literal: Literal, reason: DecisionReason) {
-        eprintln!("Set {}, {:?}", literal, reason);
+        trace!("Set {}, {:?}", literal, reason);
         if let DecisionReason::Decision = reason {
             self.frame.push(self.decision_stack.len())
         }
@@ -93,7 +93,7 @@ impl CdclSolver {
 
     fn pop_decision(&mut self) -> Option<(Literal, Decision)> {
         self.decision_stack.pop().map(|literal| {
-            eprintln!("Unset {}", literal);
+            trace!("Unset {}", literal);
             self.tracker.unset(literal.variable());
             let decision = self.decisions[literal.index()].take().unwrap();
             if let DecisionReason::Decision = decision.reason {
@@ -121,15 +121,6 @@ impl Solver for CdclSolver {
 
     fn solve(mut self) -> Option<Model> {
         while self.tracker.satisfied_clauses().len() != self.tracker.num_clauses() {
-            // Perform unit propagation
-            let unit = self.tracker.unit_clauses();
-            if let Some(clause_idx) = unit.iter().next().copied() {
-                let literal = self.tracker.get_unit_clause_literal(clause_idx);
-                self.push_decision(literal, DecisionReason::UnitPropagation(clause_idx));
-
-                continue;
-            }
-
             // Learn conflict clause from the first falsified clause
             if let Some(conflict_clause_index) = self.tracker.falsified_clauses().iter().next() {
                 let current_level = self.current_level();
@@ -141,7 +132,7 @@ impl Solver for CdclSolver {
 
                 let data_provider = CdclDataProvider::new(&self.tracker, &self.decisions);
                 let conflicting_clause = self.tracker.original_clause(*conflict_clause_index);
-                eprintln!("Conflict {}", conflicting_clause);
+                trace!("Conflict {}", conflicting_clause);
 
                 let clause_to_learn = self.conflict_analyzer.analyze(
                     &data_provider,
@@ -149,7 +140,7 @@ impl Solver for CdclSolver {
                     conflicting_clause,
                     &self.decision_stack[*self.frame.last().unwrap()..],
                 );
-                eprintln!("Learn {}", clause_to_learn);
+                trace!("Learn {}", clause_to_learn);
 
                 let second_max = clause_to_learn
                     .iter()
@@ -164,7 +155,7 @@ impl Solver for CdclSolver {
 
                 self.tracker.add_clause(clause_to_learn);
 
-                eprintln!("rewind_until {}", rewind_until);
+                trace!("rewind_until {}", rewind_until);
                 while self.current_level() > rewind_until {
                     self.pop_decision();
                 }
@@ -172,19 +163,26 @@ impl Solver for CdclSolver {
                 continue;
             }
 
-            // Make a new decision; try the first unassigned variable.
-            // TODO: implement VSIDS
-            let (index, _) = self
-                .tracker
-                .assignments()
-                .iter()
-                .enumerate()
-                .find(|(_index, value)| value.is_none())
-                .unwrap();
+            let unit = self.tracker.unit_clauses();
+            if let Some(clause_idx) = unit.iter().next().copied() {
+                // Perform unit propagation
+                let literal = self.tracker.get_unit_clause_literal(clause_idx);
+                self.push_decision(literal, DecisionReason::UnitPropagation(clause_idx));
+            } else {
+                // Make a new decision; try the first unassigned variable.
+                // TODO: implement VSIDS
+                let (index, _) = self
+                    .tracker
+                    .assignments()
+                    .iter()
+                    .enumerate()
+                    .find(|(_index, value)| value.is_none())
+                    .unwrap();
 
-            let variable = Variable::from_index(index).unwrap();
-            let literal = Literal::new(variable, true);
-            self.push_decision(literal, DecisionReason::Decision);
+                let variable = Variable::from_index(index).unwrap();
+                let literal = Literal::new(variable, true);
+                self.push_decision(literal, DecisionReason::Decision);
+            }
         }
 
         // All clauses are satisfied, fill remaining variables and return.

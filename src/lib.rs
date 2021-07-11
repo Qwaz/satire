@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 pub mod formula;
 pub mod parser;
 pub mod prelude;
