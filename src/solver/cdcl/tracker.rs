@@ -8,7 +8,7 @@ use typed_index_collections::TiVec;
 
 use crate::formula::{Clause, Cnf, Literal, Variable};
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ClauseIdx(usize);
 
 impl From<usize> for ClauseIdx {

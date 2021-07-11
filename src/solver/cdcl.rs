@@ -10,13 +10,13 @@ use super::Solver;
 mod conflict;
 mod tracker;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum DecisionReason {
     Decision,
     UnitPropagation(ClauseIdx),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Decision {
     decision_level: usize,
     reason: DecisionReason,
@@ -79,6 +79,7 @@ impl CdclSolver {
     }
 
     fn push_decision(&mut self, literal: Literal, reason: DecisionReason) {
+        eprintln!("Set {}, {:?}", literal, reason);
         if let DecisionReason::Decision = reason {
             self.frame.push(self.decision_stack.len())
         }
@@ -92,6 +93,7 @@ impl CdclSolver {
 
     fn pop_decision(&mut self) -> Option<(Literal, Decision)> {
         self.decision_stack.pop().map(|literal| {
+            eprintln!("Unset {}", literal);
             self.tracker.unset(literal.variable());
             let decision = self.decisions[literal.index()].take().unwrap();
             if let DecisionReason::Decision = decision.reason {
@@ -112,7 +114,7 @@ impl Solver for CdclSolver {
             conflict_analyzer: ConflictAnalyzer::new(num_variables),
             decisions: vec![None; num_variables],
             decision_stack: Vec::new(),
-            frame: vec![0],
+            frame: Vec::new(),
             tracker,
         }
     }
@@ -139,6 +141,7 @@ impl Solver for CdclSolver {
 
                 let data_provider = CdclDataProvider::new(&self.tracker, &self.decisions);
                 let conflicting_clause = self.tracker.original_clause(*conflict_clause_index);
+                eprintln!("Conflict {}", conflicting_clause);
 
                 let clause_to_learn = self.conflict_analyzer.analyze(
                     &data_provider,
@@ -146,6 +149,7 @@ impl Solver for CdclSolver {
                     conflicting_clause,
                     &self.decision_stack[*self.frame.last().unwrap()..],
                 );
+                eprintln!("Learn {}", clause_to_learn);
 
                 let second_max = clause_to_learn
                     .iter()
@@ -160,6 +164,7 @@ impl Solver for CdclSolver {
 
                 self.tracker.add_clause(clause_to_learn);
 
+                eprintln!("rewind_until {}", rewind_until);
                 while self.current_level() > rewind_until {
                     self.pop_decision();
                 }
