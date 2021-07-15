@@ -275,7 +275,7 @@ struct WatchedLiteral {
 
 pub struct Tracker {
     /// Number of variables.
-    _num_variables: usize,
+    num_variables: usize,
     /// The current assignments to variables.
     assignments: Vec<Option<bool>>,
     /// The number of assigned variables.
@@ -291,7 +291,7 @@ pub struct Tracker {
 impl Tracker {
     pub fn new(num_variables: usize) -> Self {
         Tracker {
-            _num_variables: num_variables,
+            num_variables,
             assignments: vec![None; num_variables],
             assigned_count: 0,
             watch: Watch::new(num_variables),
@@ -367,8 +367,21 @@ impl Tracker {
         &self.clause_cache.unit
     }
 
+    pub fn num_variables(&self) -> usize {
+        self.num_variables
+    }
+
     pub fn num_clauses(&self) -> usize {
         self.clauses.len()
+    }
+
+    pub fn variable_occurrence(&self, variable: Variable) -> usize {
+        self.literal_occurrence(Literal::new(variable, true))
+            + self.literal_occurrence(Literal::new(variable, false))
+    }
+
+    pub fn literal_occurrence(&self, literal: Literal) -> usize {
+        self.watch[literal].len()
     }
 
     fn fixup_clause(&self, idx: ClauseIdx, col: ClauseCol) {

@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 log = "0.4"
 pretty_env_logger = "0.4"
+rand = "0.8.4"
 snafu = "0.6.10"
 typed-index-collections = "3.0"
 

@@ -3,12 +3,14 @@ use crate::formula::{Clause, Cnf, Literal, Model, Variable};
 use self::{
     conflict::{ConflictAnalyzer, ConflictDataProvider},
     tracker::{ClauseIdx, Tracker},
+    vsids::VsidsScoring,
 };
 
 use super::Solver;
 
 mod conflict;
 mod tracker;
+mod vsids;
 
 #[derive(Debug, Clone, Copy)]
 enum DecisionReason {
@@ -71,6 +73,8 @@ pub struct CdclSolver {
     frame: Vec<usize>,
     /// A data structure to efficiently track each clause's status.
     tracker: Tracker,
+    /// Score tracker
+    score_heuristic: VsidsScoring,
 }
 
 impl CdclSolver {
@@ -89,11 +93,13 @@ impl CdclSolver {
             reason,
         });
         self.tracker.set_literal(literal);
+        self.score_heuristic.remove(literal.variable());
     }
 
     fn pop_decision(&mut self) -> Option<(Literal, Decision)> {
         self.decision_stack.pop().map(|literal| {
             trace!("Unset {}", literal);
+            self.score_heuristic.insert(literal.variable());
             self.tracker.unset(literal.variable());
             let decision = self.decisions[literal.index()].take().unwrap();
             if let DecisionReason::Decision = decision.reason {
@@ -107,8 +113,9 @@ impl CdclSolver {
 impl Solver for CdclSolver {
     fn new(formula: Cnf) -> Self {
         let tracker = Tracker::from_cnf(&formula);
-        let num_variables = formula.num_variables();
+        let score_heuristic = VsidsScoring::new(&tracker);
 
+        let num_variables = formula.num_variables();
         CdclSolver {
             formula,
             conflict_analyzer: ConflictAnalyzer::new(num_variables),
@@ -116,6 +123,7 @@ impl Solver for CdclSolver {
             decision_stack: Vec::new(),
             frame: Vec::new(),
             tracker,
+            score_heuristic,
         }
     }
 
@@ -149,9 +157,16 @@ impl Solver for CdclSolver {
                     .max();
 
                 let rewind_until = match second_max {
-                    None => current_level - 1,
-                    Some(val) => val,
+                    None => {
+                        debug_assert_eq!(clause_to_learn.len(), 1);
+                        0
+                    }
+                    Some(val) => {
+                        self.score_heuristic.learn_clause(&clause_to_learn);
+                        val
+                    }
                 };
+                self.score_heuristic.decay();
 
                 self.tracker.add_clause(clause_to_learn);
 
@@ -169,17 +184,8 @@ impl Solver for CdclSolver {
                 let literal = self.tracker.get_unit_clause_literal(clause_idx);
                 self.push_decision(literal, DecisionReason::UnitPropagation(clause_idx));
             } else {
-                // Make a new decision; try the first unassigned variable.
-                // TODO: implement VSIDS
-                let (index, _) = self
-                    .tracker
-                    .assignments()
-                    .iter()
-                    .enumerate()
-                    .find(|(_index, value)| value.is_none())
-                    .unwrap();
-
-                let variable = Variable::from_index(index).unwrap();
+                // Make a new decision based on VSIDS
+                let variable = self.score_heuristic.top();
                 let literal = Literal::new(variable, true);
                 self.push_decision(literal, DecisionReason::Decision);
             }

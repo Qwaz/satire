@@ -20,7 +20,7 @@ pub enum VariableParseError {
 
 /// Newtype wrapper for variable ID.
 /// Internally uses 0-based index, but uses 1-based index for printing
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Variable(u32);
 
 impl Variable {
