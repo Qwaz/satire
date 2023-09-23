@@ -17,10 +17,10 @@ mod inner {
     }
 
     impl Watch {
-        pub fn new(clauses: &[Clause]) -> Self {
+        pub fn new(clauses: &[Clause], num_variabels: usize) -> Self {
             let mut watch = Self {
-                positive: vec![Vec::new(); clauses.len()],
-                negative: vec![Vec::new(); clauses.len()],
+                positive: vec![Vec::new(); num_variabels],
+                negative: vec![Vec::new(); num_variabels],
             };
 
             for (idx, clause) in clauses.iter().enumerate() {
@@ -171,7 +171,7 @@ impl Solver for DpllSolver {
         let num_variables = formula.num_variables();
         let num_clauses = formula.clauses().len();
 
-        let watch = Watch::new(formula.clauses());
+        let watch = Watch::new(formula.clauses(), num_variables);
         let assignment = vec![None; num_variables];
         let clause_stats = vec![Default::default(); num_clauses];
 

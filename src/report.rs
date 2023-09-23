@@ -12,7 +12,7 @@ impl std::fmt::Debug for Report {
 
         if let Some(source) = self.0.source() {
             writeln!(f, "\n\nCaused by:")?;
-            for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
+            for (i, e) in std::iter::successors(Some(source), |e| e.clone().source()).enumerate() {
                 writeln!(f, "  {}: {}", i, e)?;
             }
         }
