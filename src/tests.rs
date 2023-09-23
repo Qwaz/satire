@@ -63,6 +63,8 @@ sat_testcase!(satch_cnfs, unit7);
 unsat_testcase!(satch_cnfs, unit8);
 unsat_testcase!(satch_cnfs, unit9);
 
+sat_testcase!(satch_cnfs, var4clause3);
+
 unsat_testcase!(satch_cnfs, full2);
 unsat_testcase!(satch_cnfs, full3);
 unsat_testcase!(satch_cnfs, full4);
